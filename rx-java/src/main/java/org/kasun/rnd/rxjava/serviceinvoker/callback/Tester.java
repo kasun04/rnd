@@ -14,7 +14,6 @@ public class Tester {
             public void completed(String value) {
                 System.out.println("[ThreadID-" + Thread.currentThread().getId() + "] "
                                    + "Response from Service-A : " + value);
-
                 serviceB.callAsync(value, new Callback<String>() {
                     @Override
                     public void completed(String value) {

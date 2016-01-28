@@ -10,7 +10,7 @@ public class ServiceInvoker {
 
         System.out.println("[ThreadID-" + Thread.currentThread().getId() + "] "
                            + "Initialization");
-        new ServiceA().callAsync("<Client>Hello</Client>")
+        new ServiceA().callAsync("<Client>Hello</Client> ")
                 .flatMap(new Func1<String, Observable<String>>() {
                     @Override
                     public Observable<String> call(String s) {

@@ -11,9 +11,8 @@ import java.util.List;
 
 public class Tester {
     public static void main(String[] args) throws Exception {
-        basicRx4();
+        basicRx3();
     }
-
 
     /* Observable.create and subscriber */
     public static void basicRx1() throws Exception {
@@ -121,7 +120,7 @@ public class Tester {
 
     public static void basicRx3Lambda() throws Exception {
         List<String> newsList = new ArrayList<String>();
-        newsList.add("US-Election GoP polls.");
+        newsList.add("US-Election GoP polls. ");
         newsList.add("US-China trade");
         newsList.add("US-Weather alert.");
         newsList.add("US-Sports NFL.");
@@ -136,7 +135,6 @@ public class Tester {
     }
 
 
-
     public static void basicRx4() throws Exception {
         callLocationAPI("2.2", "2.1")
                 .flatMap(new Func1<String, Observable<String>>() {
@@ -148,7 +146,7 @@ public class Tester {
                 .subscribe(new Observer<String>() {
                     @Override
                     public void onCompleted() {
-                        System.out.println("All API calls completed!");
+                        System.out.println("All API calls are completed!");
 
                     }
 

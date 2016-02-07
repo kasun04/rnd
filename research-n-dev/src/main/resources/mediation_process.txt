@@ -1,0 +1,86 @@
+@startuml
+
+use_case_1    :   MediationProcess("License Renewal use case")
+
+http_inbound_1          :   InboundEndpoint(protocol("http"), port(6060), context("/foo"))
+
+sequence_1              :   Sequence("sequence_1")
+sequence_2              :   Sequence("sequence_2")
+
+Insurance_Service       :   OutboundEndpoint(protocol("http"), host("http://localhost:9090/INS"))
+Emission_Test_service   :   OutboundEndpoint(protocol("http"), host("http://localhost:9190/ETS"))
+License_Service         :   OutboundEndpoint(protocol("http"), host("http://localhost:9290/LS"))
+Payment_Gateway         :   OutboundEndpoint(protocol("http"), host("http://localhost:9390/PG"))
+salesforce_query        :   OutboundEndpoint(protocol("sfdc"), host("https://salesforce1.com"))
+
+http_inbound_1 -> sequence_1 : request
+
+process_message(enrich, configs...)
+process_message(log, configs...)
+
+par
+    process_message(trans, configs...)
+    process_message(log, configs...)
+
+    sequence_1 -> Insurance_Service: Validate policy
+    Insurance_Service -> sequence_1: Validation response
+
+    process_message(log, configs...)
+
+    alt configs(xpath: //validation == fail ...)
+        process_message(log, configs...)
+        ref errorhandler_seq
+    end
+else
+    process_message(enrich, configs...)
+    process_message(trans, configs...)
+
+    sequence_1 -> Emission_Test_service: validate emission test cert
+    Emission_Test_service -> sequence_1
+
+    process_message(log, configs...)
+
+    alt json_path: $body.status == fail
+        process_message(log, configs...)
+        ref error_handler_seq
+    end
+end
+
+process_message(log, configs...)
+process_message(enrich, configs...)
+
+loop xpath://certs
+    process_message(trans, configs...)
+    process_message(log, configs...)
+    group transactional
+        sequence_1 -> License_Service: get license cert
+        License_Service -> sequence_1
+        process_message(log, configs...)
+        sequence_1 -> Payment_Gateway : pay license fee
+        Payment_Gateway -> sequence_1
+        process_message(log, configs...)
+    end
+    process_message(log, configs...)
+end
+
+sequence_1 -> sequence_2 : compose final response
+
+process_message(log, configs...)
+process_message(enrich, configs...)
+
+alt xpath://response/status == "*success"
+    process_message(enrich, configs...)
+    process_message(log, configs...)
+    sequence_2 -> sequence_1
+else
+    process_message(log, configs...)
+    ref errorhandler_seq_2
+end
+
+sequence_1 -> salesforce_query
+salesforce_query-> sequence_1
+
+process_message(log, configs...)
+sequence_1 -> http_inbound_1
+
+@enduml

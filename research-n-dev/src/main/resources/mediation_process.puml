@@ -1,0 +1,66 @@
+@startuml
+http_inbound_1 -> sequence_1 : request
+
+hnote over sequence_1 : enrich
+hnote over sequence_1 : log...
+
+par
+    hnote over sequence_1 : trans
+    hnote over sequence_1 : log..
+    sequence_1 -> Insurance_Service: Validate policy
+    Insurance_Service -> sequence_1: Validation response
+    hnote over sequence_1 : log..
+    alt xpath: //validation == fail
+        hnote over sequence_1 : log..
+        ref over sequence_1 : errorhandler_seq
+    end
+else
+     hnote over sequence_1 : enrich
+     hnote over sequence_1 : trans
+     sequence_1 -> Emission_Test_service: validate emission test cert
+     Emission_Test_service -> sequence_1
+     hnote over sequence_1 : log..
+     alt json_path: $body.status == fail
+        hnote over sequence_1 : log..
+        ref over sequence_1 : error_handler_seq
+     end
+end
+
+hnote over sequence_1 : log...
+hnote over sequence_1 : enrich
+
+loop for-each certificate
+    hnote over sequence_1 : trans
+    hnote over sequence_1 : enrich
+    group transaction
+        sequence_1 -> License_Service: get license cert
+        License_Service -> sequence_1
+        hnote over sequence_1 : log...
+        sequence_1 -> Payment_Gateway : pay license fee
+        Payment_Gateway -> sequence_1
+        hnote over sequence_1 : log...
+    end
+    hnote over sequence_1 : log...
+end
+
+
+sequence_1 -> sequence_2 : compose final response
+
+hnote over sequence_2 : log...
+hnote over sequence_2 : enrich
+alt foo
+    hnote over sequence_2 : enrich
+    hnote over sequence_2 : log...
+    sequence_2 -> sequence_1
+else
+    hnote over sequence_2 : log...
+    ref over sequence_2 : errorhandler_seq_2
+end
+
+sequence_1 -> salesforce_query
+salesforce_query-> sequence_1
+
+hnote over sequence_1 : log...
+sequence_1 -> http_inbound_1
+
+@enduml

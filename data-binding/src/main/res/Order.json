@@ -1,0 +1,24 @@
+{
+  "order": {
+    "id": "1232",
+    "name": "order123",
+    "description": "Standard order",
+    "source_id":"xyz",
+    "structure": {
+      "component": [
+        {
+          "key": "Abc",
+          "value": "aaaa"
+        },
+        {
+          "key": "Pqr",
+          "value": "bbbb"
+        },
+        {
+          "key": "Xyz",
+          "value": "cccc"
+        }
+      ]
+    }
+  }
+}

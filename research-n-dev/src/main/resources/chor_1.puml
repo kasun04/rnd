@@ -1,0 +1,27 @@
+@startuml
+http_inbound_1 -> buyer_seq : getQuote
+
+
+buyer_seq -> seller_seq
+seller_seq -> selling_service
+selling_service -> seller_seq
+seller_seq -> buyer_seq
+buyer_seq -> http_inbound_1 : getQuoteResponse
+
+http_inbound_1 -> buyer_seq : orderQuote
+buyer_seq -> seller_seq
+seller_seq -> credit_agency_service
+credit_agency_service -> seller_seq
+
+seller_seq -> shipping_service
+shipping_service -> seller_seq
+
+seller_seq -> buyer_seq
+buyer_seq -> http_inbound_1:orderResponse
+
+hnote over sequence_1 : enrich
+hnote over sequence_1 : log...
+
+
+
+@enduml

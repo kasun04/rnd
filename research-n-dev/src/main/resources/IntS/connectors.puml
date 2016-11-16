@@ -1,0 +1,19 @@
+@startuml
+
+hnote over Resource : datamapper
+
+Resource->Salesforce_wso2:salesforce.query(...)
+Resource<-Salesforce_wso2
+hnote over Resource : datamapper
+
+Resource->Jira:jira.create(...)
+Resource<-Jira
+
+
+
+
+
+
+
+
+@endum

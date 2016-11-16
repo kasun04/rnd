@@ -1,0 +1,206 @@
+
+
+Path
+=====
+
+foo://example.com:8042/over/there?name=ferret#nose
+     \_/   \______________/\_________/ \_________/ \__/
+      |           |            |            |        |
+   scheme     authority       path        query   fragment
+      |   _____________________|__
+     / \ /                        \
+     urn:example:animal:ferret:nose
+
+
+The generic URI syntax consists of a hierarchical sequence of
+components referred to as the scheme, authority, path, query, and
+fragment.
+
+
+PATH : URI, JaxRS
+
+
+
+
+Service
+Operations
+
+
+
+
+
+// ********************************************************************************************************************
+
+@IntegrationFlow HolidayPackage
+
+const Integer port = 8290
+const String basePath = “/web”
+
+
+Source travelPortalListener (uri("http://localhost:6060/$basePath"), params...)
+
+Destination airlineEP (uri("http://localhost:8080/airline/"))
+
+Destination hotelEP (uri("http://localhost:8080/hotel/"))
+
+Destination carRentalEP (uri("http://localhost:8080/car/"))
+
+Service name="TravelpediaBooking" path="/travelpedia" description="Travelpedia flight, hotel and car rental services" qosSchemes="security|analytics|throttling"
+
+path "/flights/?depart={dateDepart}&return={dateReturn}&from={from}&to={to}" condition="method==GET,POST" description="Get flight details"
+        travelPortalListener -> getFlights
+        getFlights -> travelPortalListener
+end
+
+path "/hotels/?from={dateFrom}&to={dateTo}&location={location}" condition="method==GET" description="Get hotel details"
+    travelPortalListener -> getHotels
+    getHotels -> travelPortalListener
+end
+
+path "/rentals/?from={dateFrom}&to={dateTo}&type={type}" condition="method==GET" description="Get rental info"
+    travelPortalListener -> getRentalCars
+    getRentalCars -> travelPortalListener
+end
+
+path "/book" condition="method==POST" description="Book holiday package; flight, hotel & rental car"
+    travelPortalListener -> bookPackage
+    bookPackage -> travelPortalListener
+end
+
+Pipeline getFlights begin
+    dataMapper(input($dateDepart, $dateReturn, $from, $to), output("getFlights.jschema"), config("getFlightsMapping.js"))
+    getFlights -> airlineEP
+    airlineEP -> getFlights
+end
+
+Pipeline getHotels begin
+    dataMapper(input($dateFrom, $dateTo, $location), output("getHotels.jschema"), config("getHotelsMapping.js"))
+    getHotels -> hotelEP
+    hotelEP -> getHotels
+end
+
+Pipeline getRentalCars begin
+    dataMapper(input($dateFrom, $dateTo, $type), output("getRentalCars.jschema"), config("getRentalCarsMapping.js"))
+    getRentalCars -> carRentalEP
+    carRentalEP -> getRentalCars
+end
+
+Pipeline bookPackage begin
+    String location = eval("$.request.holiday.location")
+    // Check airline availability
+    Boolean booked, String flightBookingRef = bookAirlineRoutine($location, $dateFrom, $dateTo)
+    if ($booked)
+        // Book hotel and car rental in parallel
+        bookPackage -> par(hotelPipeline, carRentalPipeline)
+
+        carRentalPipeline -> bookPackage
+        JsonMessage carRentalResponse = eval("$")
+
+        hotelPipeline -> bookPackage
+        JsonMessage hotelResponse = eval("$")
+
+        dataMapper(input($flightBookingRef, $hotelResponse, $carRentalResponse), output("response.jschema"), config("response.js"))
+    else
+        dataMapper(input("holiday-package.jscema"), output("flight-unavailable.jschema"), config("unavailable.js"))
+    end
+end
+
+Pipeline hotelPipeline begin
+    // Check hotels in area
+    dataMapper(input("holiday-package.jschema"), output("get-hotels.jschema"),
+                                                                      config("nearby-hotels.js"))
+    hotelPipeline -> hotelEP
+    hotelEP -> hotelPipeline
+
+    // we can simplify what follows to a single line using map, reduce function as below
+    # reduce(map("$.hotels", queryHotelPipeline), findCheapestHotel)) // map will produce array of Message and reduce will loop through array of Message and output a single Message. Data parallelism.
+
+    // Query each hotel for price and availability
+    Integer lowestCost = 0
+    JsonMessage hotel;
+    foreach ("$.hotels")
+        dataMapper(input("hotel.jschema"), output("query-hotel.jschema"), config("hotel.js"))
+        hotelPipeline -> hotelEP
+        hotelEP -> hotelPipeline
+        if (lowestCost == 0)
+            lowestCost = eval("$.hotel.cost")
+            hotel = eval("$.hotel")
+        end
+        if ("$.hotel.cost" < lowestCost)
+            lowestCost = eval("$.hotel.cost")
+            hotel = eval("$.hotel")
+        end
+    end
+
+    // Book cheapest hotel
+    dataMapper(input($hotel, "hotel.jschema"), output("book-hotel.jschema"), config("book-hotel.js"))
+    hotelPipeline -> hotelEP
+    hotelEP -> hotelPipeline
+end
+
+Pipeline carRentalPipeline begin
+    // Find available rental cars
+    dataMapper(input("holiday-package.jschema"), output("car-rental.jschema"), config("rental.js"))
+    carRentalPipeline -> par(getHertzCars, getEnterpriseCars)
+    log("Retrieving available vehicles from Partners")
+    getHertzCars | getEnterpriseCars -> carRentalPipeline    // pipeline that completes first should return
+
+    // Book rental car
+    dataMapper(input("car-rental.jschema"), output("book-car-rental.jschema"), config("rental.js"))
+    carRentalPipeline -> carRentalEP
+    carRentalEP -> carRentalPipeline
+end
+
+Pipeline getHertzCars begin
+    // retrieve rental cars available from Hertz rent-a-car
+    dataMapper(input("car-rental.jschema"), output("hertz.jschema"), config("hertzMapping.js"))
+    getHertzCars -> carRentalEP
+    carRentalEP -> getHertzCars
+    dataMapper(input("hertz.jschema"), output("car-rental.jschema"), config("hertzMapping.js"))
+end
+
+Pipeline getEnterpriseCars begin
+    // retrieve rental cars available from enterprise rent-a-car
+    dataMapper(input("car-rental.jschema"), output("enterprise.jschema"), config("enterpriseMapping.js"))
+    getEnterpriseCars -> carRentalEP
+    carRentalEP -> getEnterpriseCars
+    dataMapper(input("enterprise.jschema"), output("car-rental.jschema"), config("enterpriseMapping.js"))
+end
+
+
+// ********************************************************************************************************************
+
+@IntegrationFlow myOrderProcFlow
+
+Source fileOrders (uri("ftp:///Usr/local/repo/ecom/orders"), params...)
+
+Destination brokerEp (uri("jms://localhost:8180/"), params...)
+
+
+fileOrders -> orderProcessingPipeline
+
+Pipeline orderProcessingPipeline begin
+    dataMapper(...)
+    orderProcessingPipeline -> brokerEp
+end
+
+// ********************************************************************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+=========
+
+
+
+
+
+

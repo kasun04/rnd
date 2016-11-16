@@ -1,0 +1,23 @@
+@startuml
+
+
+
+
+Client->Server: requests access to a protected resource
+Server->Client:  'Server certificate' + 'Public Key'
+
+Client->Client :Verify 'Server certificate'
+Client->Server:  'Client certificate'
+
+Server->Server: Verify 'Client certificate'
+Client->Server : Create and send encrypted 'Session key' with server's public key.
+Server->Server:Decrypt the 'session key' using server's private key
+
+Client -> Server : [Encrypted - Data] ::with 'Session key'
+Server -> Client : [Encrypted - Data] ::with 'Session key'
+
+
+
+
+
+@endum

@@ -1,0 +1,14 @@
+@startuml
+
+
+sp_user -> service_provider:logging atempt
+service_provider -> WSO2_IS : authentication request
+WSO2_IS -> WSO2_IS__Inbound_Authenticator:SAML_SSO, OAuth/OpenID Connect, Passive STS, OpenID
+WSO2_IS__Inbound_Authenticator -> Auth_Framework
+
+
+
+
+
+
+@endum

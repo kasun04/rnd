@@ -1,0 +1,55 @@
+@startuml
+
+
+
+        client -> service_provider_travelocity: STEP 1 : SAML request   /saml
+        hnote over service_provider_travelocity : SAMLReq Processor
+        hnote over service_provider_travelocity : log
+
+        service_provider_travelocity -> Auth_Step_Facebook
+
+        service_provider_travelocity -> Auth_Step_Google
+
+
+        hnote over Auth_Step_Facebook : datamapper
+        hnote over Auth_Step_Google : datamapper
+
+
+        Auth_Step_Facebook -> Facebook
+
+
+        Auth_Step_Google -> Google
+        Facebook -> Auth_Step_Facebook
+        Google -> Auth_Step_Google
+
+
+        Auth_Step_Facebook -> service_provider_travelocity
+        Auth_Step_Google -> service_provider_travelocity
+
+        hnote over service_provider_travelocity : log
+        service_provider_travelocity ->client
+
+
+
+
+
+        client -> service_provider_travelocity: STEP 2 : OIDC request   /oauth
+        hnote over service_provider_travelocity : log
+        hnote over service_provider_travelocity : OIDC Req Processor
+
+
+        service_provider_travelocity -> Auth_Step_Yahoo
+
+        hnote over Auth_Step_Yahoo : datamapper
+
+
+        Auth_Step_Yahoo -> Yahoo
+
+
+        Yahoo -> Auth_Step_Yahoo
+
+        Auth_Step_Yahoo -> service_provider_travelocity
+
+        hnote over service_provider_travelocity : log
+        service_provider_travelocity ->client
+@endum

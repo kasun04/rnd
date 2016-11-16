@@ -1,0 +1,53 @@
+@basePath ("/web")
+@Source (protocol="http", host=“localhost", port=8080)
+@Api (tags = {"Holiday_details","Holiday_packages"} description = “Travelpedia flight, hotel and car rental services”)
+package com.classic.travel
+
+constant endpoint hotelEP = “$system.hotel.ep”;
+constant endpoint carRentalEP = new URL (..); // can be overridden from outside by setting com.classic.travel.carRentalEP
+
+@GET
+@Produces (“application/json”)
+@Consumes (“application/json”)
+@ApiOperation (value = “Return flight details”, response= “{
+   "flights":[
+      {
+         "airline":"emirates",
+         "id":"xyz"
+      }
+   ]
+}
+”)
+@Path ("/flights?depart={dateDepart}&return={dateReturn}&from={from}&to={to}")
+resource flights (message m) {
+   message c = datamap("getFlightsMapping.js", m);
+   message response;
+   try {
+      response = invoke(airlineEP, c);
+   } catch (exception e) {
+      response.setHeader(HTTP.StatusCode, 500);
+      response.setPayload(Type.JSON, {});
+   }
+   reply response;
+}
+
+
+
+@GET
+@Produces(“application/json”)
+@Consumes(“application/json”)
+@ApiOperation (value = “Return hotel details”, response= “{
+   "hotels":[
+      {
+         "location":"cmb",
+         "name":"kingsbury"
+      }
+   ]
+}”)
+@Path ("/hotels?from={dateFrom}&to={dateTo}&location={location}")
+resource hotels (message m) {
+   message c = datamap("getHotelsMapping.js", m);
+   int sid = sendTo(hotelEP, c);
+   message r = receiveFrom(hotelEP, sid);
+   reply r;
+}

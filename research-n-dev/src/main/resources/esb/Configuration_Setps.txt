@@ -1,0 +1,24 @@
+
+
+- Enable local transport
+
+
+    1. In the carbon.xml file at location <ESB_HOME>/repository/conf, an endpoint is available as follows by default.
+    <ServerURL>local://services/</ServerURL>
+    Replace it with
+    <ServerURL>https://${carbon.local.ip}:${carbon.management.port}${carbon.context}/services/</ServerURL>
+
+    2. In the axis2.xml file at location <PRODUCT_HOME>/repository/conf/axis2/axis2.xml, there is a transport sender and receiver named 'local' specified as follows in two different places:
+    <transportReceiver name="local" class="org.wso2.carbon.core.transports.local.CarbonLocalTransportReceiver"/>
+
+    <transportSender name="local" class="org.wso2.carbon.core.transports.local.CarbonLocalTransportSender"/>
+
+    Remove both the above lines and add following line.
+    <transportSender name="local" class="org.apache.axis2.transport.local.NonBlockingLocalTransportSender"/>
+
+- Why we have to use local transport?
+
+    Local transport is use to invoke a given proxy service or an API of WSO2 through a sequence or any other construct without going through the HTTP transport (this is an in-jvm call).
+    The main idea is to invoke such a construct without going through the network layer. Here we have to use local transport because forwarding processor can only invoke a given endpoint.
+    Hence we calling an endpoint from forwarding processor and endpoint refers to a existing proxy service which calls the sequence :UpdateRecordsFlow (<sequence key="UpdateRecordsFlow"/>)
+

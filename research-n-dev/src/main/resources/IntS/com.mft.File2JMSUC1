@@ -1,0 +1,15 @@
+package com.mft
+
+integrationFlow File2JMSUC1 {
+    source fileOrderSrc = new Source("ftp://10.100.1.1/orders", params..)
+    // source fileOrderSrc = new Source("ftp://10.100.1.1/orders", params..)       // URI + parameters
+
+    destination jmsOrderDest = new Destination("jms://localhost:7070", connFact()..)
+
+
+    worker File2JMSConverter {
+        message m = receiveFrom(fileOrderSrc);
+        message c = datamap("holiday-package.jschema", "get-hotels.jschema", "nearby-hotels.js", m);
+        sendTo(jmsOrderDest, c);
+    }
+}

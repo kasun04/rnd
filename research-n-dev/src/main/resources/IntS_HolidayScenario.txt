@@ -1,0 +1,238 @@
+
+
+
+
+Execution Parallelism
+=====================
+//fork-join, clone-aggregate
+
+
+Pipeline A begin
+    A -> par(B,C) // B, C execute in parallel
+    datamapper(..)
+    A -> K
+    K -> A
+
+    B | C -> A // whichever returns first
+    // OR
+    B -> A // block until B responds
+End
+
+
+Pipeline A begin
+    A -> par(B,C,D,E) // B, C, D, E execute in parallel
+    ((B | C) & D) -> A // aggregates response B or C with D
+    log()
+    E -> A
+   log()
+End
+
+
+Loop
+====
+
+Pipeline A begin
+    loop(i < 10)
+        log(..)
+        A -> B
+        B -> A
+    End
+End
+
+
+Data Parallelism
+================
+
+Pipeline A begin
+    Parallel_Stream"/orders/*")
+        Map
+            $order -> data_mapper(...)
+        End
+        Reduce
+            ($message, $orders) -> $message + $.order
+        End
+    End
+    log(.) // log full message
+End
+
+
+
+
+
+
+    A -> par(B,C) // B, C execute in parallel
+    B | C -> A // whichever returns first
+    // OR
+    B -> A // block until B responds
+End
+
+
+
+
+
+
+
+
+
+
+
+
+
+=====================================================================================
+// Service Concept, source/destination
+
+@IntegrationFlow HolidayPackage
+
+// constants
+const Integer port = 8290
+const String basePath = "/web"
+
+
+Source travelPortalHttpListener (protocol("http"), host("travelpedia.web.com"), port($port), basePath($basePath))
+
+Destination airlineEP (protocol("http"), uri("http://localhost:8080/airline/")
+Destination hotelEP (protocol("http"), uri("http://localhost:8080/hotel/")
+Destination carRentalEP (protocol("http"), uri("http://localhost:8080/car/")
+
+service name="TravelpediaBookings" path="/travelpediaservices"
+        description="Available travel options."
+        qosSchemes="security|analytics|throttling"
+    path "/travelpackages" params...
+       // Calling defined pipleline and no inline pipeline(?)
+       travelPortalHttpListener -> travelPackageMessageMediationLogic
+       flightMessageMediationLogic -> travelPortalHttpListener
+    end
+    path "/flights" params...
+        travelPortalHttpListener -> flightMediationLogic
+        flightMediationLogic -> travelPortalHttpListener
+    end
+
+    path "/hotels" params...
+            travelPortalHttpListener -> hotelMediationLogic
+            hotelMediationLogic -> travelPortalHttpListener
+    end
+
+    path "/carrentals" params...
+            ...
+    end
+end
+
+
+
+
+
+
+
+// same as previous example...
+Pipeline flightMessageMediationLogic begin
+    String location = eval("$.request.holiday.location")
+    // Check airline availability
+    Boolean booked, String airlineResponse = bookAirline($location, $dateFrom, $dateTo)
+    if ($booked)
+        // Book hotel and car rental in parallel
+        mainPipeline -> par(hotelPipeline, carRentalPipeline)
+        datamapper()
+        log()
+
+        hotelPipeline | carRentalPipeline -> mainPipeline
+
+        carRentalPipeline -> mainPipeline
+        Message carRentalResponse = path("$")
+
+        hotelPipeline -> mainPipeline
+        Message hotelResponse = path("$")
+
+        dataMapper(input($airlineResponse, $hotelResponse, $carRentalResponse),
+                                               output("response.jschema"), config("response.js"))
+    else
+        dataMapper(input("holiday-package.jscema"), output("flight-unavailable.jschema"),
+                                                                        config("unavailable.js"))
+    end
+end
+
+
+
+
+=====================================================================================
+
+// URI scheme sample
+
+//        foo://example.com:8042/over/there?name=ferret#nose
+//         \_/   \______________/\_________/ \_________/ \__/
+//          |           |            |            |        |
+//       scheme     authority       path        query   fragment
+//          |   _____________________|__
+//         / \ /                        \
+//         urn:example:animal:ferret:nose
+
+
+
+@IntegrationFlow HolidayPackage
+
+// constants
+const Integer port = 8290
+
+
+Source travelPortalHttpListener (uri("http://localhost:6060/base_path"), boss_gr(8), wrk_gr(32))
+Source myJMSSource (uri("jms:topic:exchange.*"), connectionFactory("..."))
+
+
+Destination airlineEP (protocol("http"), uri("http://localhost:8080/airline/")
+Destination hotelEP (protocol("http"), uri("http://localhost:8080/hotel/")
+Destination carRentalEP (protocol("http"), uri("http://localhost:8080/car/")
+
+
+...
+
+
+
+
+
+
+
+
+
+
+====
+
+
+
+
+
+
+exchange.*
+exchange.nyse
+exchange.nasdaq
+
+jms:topic:exchange.*?param=1000
+
+
+
+
+
+
+group name="Travelpedia" path="book/package/{dateFrom}/{dateTo}/" method="POST"
+    inboundEP -> mainPipeline
+    mainPipeline -> inboundEP
+end
+
+
+Pipeline mainPipeline begin
+    String location = path("$.request.holiday.location")
+    // Check airline availability
+    Boolean booked, Message airlineResponse = bookAirline($location, $dateFrom, $dateTo)
+    if ($booked)
+        // Book hotel and car rental in parallel
+        mainPipeline -> hotelPipeline, carRentalPipeline
+
+        carRentalPipeline -> mainPipeline
+        Message carRentalResponse = path("$")
+
+        hotelPipeline -> mainPipeline
+        Message hotelResponse = path("$")
+
+        dataMapper(input($airlineResponse, $hotelResponse, $carRentalResponse),
+                                               output("response.jschema"), config("response.js"))
+    else
+        dataMapper(input("holiday-package.jscema"), output("flight-unavailable.jschema"),
+                                                                        config("unavailable.js"))

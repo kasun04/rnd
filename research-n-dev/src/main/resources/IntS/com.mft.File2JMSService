@@ -1,0 +1,27 @@
+package com.classic.travel
+
+@Description "Travelpedia flight, hotel and car rental services"
+@Security "basicAuth-config"
+@Path "/web"
+service HolidayPackage {
+
+    source fileOrderSrc = new Source("ftp://10.100.1.1/newOrders", params..)
+
+    destination jmsOrderDest = new Destination("jms://localhost:7070", connFact()..)
+
+
+    @Description "Poll new orders"
+    @Path "*"
+    resource allOrders {
+        worker orderProcessingWorker {
+            message m = receiveFrom(fileOrderSrc);
+            message c = datamap("holiday-package.jschema", "get-hotels.jschema", "nearby-hotels.js", m);
+            sendTo(jmsOrderDest, c);
+        }
+    }
+
+
+
+
+ }
+

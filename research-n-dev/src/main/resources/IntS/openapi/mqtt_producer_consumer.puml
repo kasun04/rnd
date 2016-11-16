@@ -1,0 +1,23 @@
+@startuml
+
+
+
+group connection_X
+
+MQTT_Producer -> MQTT_Broker:Produce :: sport/tennis/ : news_1:tennis (over:tcp)
+MQTT_Producer -> MQTT_Broker:Produce :: sport/tennis/ : news_2:tennis (over:tcp)
+MQTT_Producer -> MQTT_Broker:Produce :: sport/tennis/ : news_3:tennis (over:tcp)
+
+ end
+
+group connection_Y
+
+MQTT_Consumer-> MQTT_Broker:Subscribe:topic="sport/tennis/" (over:tcp)
+MQTT_Broker -> MQTT_Consumer : news_1:tennis (over:tcp)
+MQTT_Broker -> MQTT_Consumer : news_2:tennis (over:tcp)
+MQTT_Broker -> MQTT_Consumer : news_3:tennis (over:tcp)
+
+
+ end
+
+@enduml

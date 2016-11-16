@@ -1,0 +1,50 @@
+@startuml
+
+alt base_path=/myAPI, methods=GET, POST
+    hnote over http_inbound_1 : enrich
+    hnote over http_inbound_1 : log...
+    http_inbound_1 -> sequence_1
+else base_path=/myAPI/aa
+    hnote over http_inbound_1 : log...
+        http_inbound_1 -> buyer_seq
+  else
+      hnote over http_inbound_1 : log...
+          http_inbound_1 -> buyer_seq
+end
+
+http_inbound_1 -> buyer_seq : request
+
+
+
+par
+    hnote over buyer_seq : trans
+    hnote over buyer_seq : log..
+    buyer_seq -> supp_a_seq
+
+    hnote over supp_a_seq : trans
+
+    par
+        hnote over supp_a_seq : trans
+        supp_a_seq -> manufacturer_1
+        manufacturer_1 -> supp_a_seq
+    else
+        hnote over supp_a_seq : trans
+        supp_a_seq -> manufacturer_2
+        manufacturer_2 -> supp_a_seq
+
+    end
+
+else
+     hnote over buyer_seq : enrich
+     hnote over buyer_seq : log..
+     buyer_seq -> supp_b_seq
+
+else
+     hnote over buyer_seq : enrich
+     hnote over buyer_seq : log..
+     buyer_seq -> supp_c_seq
+
+end
+
+
+@enduml

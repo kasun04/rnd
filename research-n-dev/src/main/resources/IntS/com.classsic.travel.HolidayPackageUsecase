@@ -1,0 +1,255 @@
+package com.classic.travel
+
+integrationFlow HolidayPackageUseCase {
+    int port = 8290
+    int noOfWorkerThreads = 100
+
+    // URI based declaration of the sources and destinations
+    source travelPortalListener = new Source("http://localhost", $port, $noOfWorkerThreads)
+
+
+    destination airlineEP = new Destination("http://localhost:8080/airline/")
+    destination hotelEP = new Destination("http://localhost:8080/hotel/")
+    destination carRentalEP = new Destination("http://localhost:8080/car/")
+    // destination db = new Destination("jdbc:dataSourceName...")
+
+
+    @Description "Travelpedia flight, hotel and car rental services"
+    @Security "basicAuth-config"
+    @Path "/web"
+    service HolidayPackage {
+
+        @Methods "GET"
+        @Description "Return flight details"
+        @Path "/flights?depart={dateDepart}&return={dateReturn}&from={from}&to={to}"
+        resource flights {
+            worker flightsWorker {
+                message m = receiveFrom(travelPortalListener);
+                message c = dataMap("request.jschema", "getFlights.jschema", "getFlightsMapping.js", m);
+                int sid = sendTo(airlineEP, c);
+                message r = receiveFrom (airlineEP, sid);
+                replyTo (travelPortalListener, r);
+            }
+        }
+
+        @Methods "GET"
+        @Description "Return hotel details"
+        @Path "/hotels?from={dateFrom}&to={dateTo}&location={location}"
+        resource hotels {
+            message m = receiveFrom(travelPortalListener);
+            message c = datamap("request.jschema", "getHotels.jschema", "getHotelsMapping.js", m);
+            int sid = sendTo(hotelEP, c);
+            message r = receiveFrom (hotelEP, sid);
+            replyTo (travelPortalListener, r);
+        }
+
+        @Methods "GET"
+        @Description "Return car rental info"
+        @Path "/rentals?from={dateFrom}&to={dateTo}&type={type}"
+        resource cars {
+            message m = receiveFrom(travelPortalListener);
+            message c = datamap("request.jschema","getRentalCars.jschema", "getRentalCarsMapping.js", m);
+            int sid = sendTo(carRentalEP, c);
+            message r = receiveFrom (carRentalEP, sid);
+            replyTo (travelPortalListener, r);
+        }
+
+        @Methods "POST"
+        @Description "Book holiday package; flight, hotel & rental car"
+        @Path "/bookings?from={dateFrom}&to={dateTo}"
+        resource bookPackage {
+            message m = receiveFrom(travelPortalListener);
+            string location = eval("$.request.holiday.location", m);
+            boolean booked, string flightBookingRef = bookAirline($location, $dateFrom, $dateTo, m);
+            if ($booked) {
+                parallel{
+                    worker hotelWorker {
+                        message c = datamap("holiday-package.jschema", "get-hotels.jschema", "nearby-hotels.js", m);
+                        int sid = sendTo(hotelEP, c);
+                        message r = receiveFrom (hotelEP, sid);
+                        // Query each hotel for price and availability
+                        int lowestCost = 0
+                        JsonMessage hotel;
+
+                        foreach (message h : eval("$.hotels", r)){
+                        message c1 = datamap("hotel.jschema","query-hotel.jschema", "hotel.js", h);
+                            int sid1 = sendTo(hotelEP, c1);
+                            message r1 = receiveFrom (hotelEP, sid1);
+              if (lowestCost == 0){
+                 lowestCost = eval("$.hotel.cost", r1)
+                               hotel = eval("$.hotel", r1)
+                           }
+              if (eval("$.hotel.cost", r1) < lowestCost){
+                  lowestCost = eval("$.hotel.cost", r1)
+                  hotel = eval("$.hotel", r1)
+              }
+           }
+           message c2 = datamap(new JsonSchema($hotel), "book-hotel.jschema", "book-hotel.js", m);
+           int sid2 = sendTo(hotelEP, c2);
+                         message r2 = receiveFrom (hotelEP, sid2);
+                         return r2;
+                     }
+                     worker carRentalWorker{
+    message c1 = datamap("holiday-package.jschema", "car-rental.jschema", "rental.js", m);
+                   parallel{
+                       worker getHertzCars{
+                           // retrieve rental cars available from Hertz rent-a-car
+    message c2 = datamap("car-rental.jschema", "hertz.jschema", "hertzMapping.js", c1);
+                                  int sid = sendTo(carRentalEP, c1);
+                                  message r = receiveFrom (carRentalEP, sid);
+    message c3 = datamap("hertz.jschema", "car-rental.jschema", "hertzMapping.js", r);
+                           return c3;
+                       }
+                       worker getEnterpriseCars{
+                           // retrieve rental cars available from Hertz rent-a-car
+    message c2 = datamap("car-rental.jschema", "enterprise.jschema", "enterpriseMapping.js", c1);
+                                 int sid = sendTo(carRentalEP, c1);
+                                  message r = receiveFrom (carRentalEP, sid);
+    message c3 = datamap("enterprise.jschema", "car-rental.jschema", "enterpriseMapping.js", r);
+                           return c3;
+                       }
+               }
+
+
+               log("Retrieving available vehicles from Partners");
+               message c2 = receiveFrom(getHertzCars || getEnterpriseCars);
+    message c3 = datamap("car-rental.jschema", "book-car-rental.jschema", "rental.js", c2);
+               int sid = sendTo(carRentalEP, c3);
+                      message r = receiveFrom (carRentalEP, sid);
+                      return r;
+         }
+               message r1 = receiveFrom(carRentalWorker);
+               JsonMessage carRentalResponse = eval("$", r1);
+
+               message r2 = receiveFrom(hotelWorker);
+               JsonMessage hotelResponse = eval("$", r2);
+
+    message c1 = datamap(new InputSchema($flightBookingRef, $hotelResponse, $carRentalResponse), "response.jschema", new MappingConfig("response.js"), r2);
+               replyTo (travelPortalListener, c1);
+          }
+          else{
+    message c1 = map("holiday-package.jscema", "flight-unavailable.jschema", "unavailable.js", m);
+               replyTo (travelPortalListener, c1);
+
+    }
+
+
+
+}
+
+        @Description "Travelpedia flight, hotel and car rental services"
+        @Security "basicAuth-config"
+        @Path "/web"
+        service HolidayPackage {
+
+            @Methods "GET"
+            @Description "Return flight details"
+            @Path "/flights?depart={dateDepart}&return={dateReturn}&from={from}&to={to}"
+            resource flights {
+                message m = receiveFrom(travelPortalListener);
+                message c = dataMap("request.jschema", "getFlights.jschema", "getFlightsMapping.js", m);
+                int sid = sendTo(airlineEP, c);
+                message r = receiveFrom (airlineEP, sid);
+                replyTo (travelPortalListener, r);
+            }
+
+            @Methods "GET"
+            @Description "Return hotel details"
+            @Path "/hotels?from={dateFrom}&to={dateTo}&location={location}"
+            resource hotels {
+                message m = receiveFrom(travelPortalListener);
+                message c = datamap("request.jschema", "getHotels.jschema", "getHotelsMapping.js", m);
+                int sid = sendTo(hotelEP, c);
+                message r = receiveFrom (hotelEP, sid);
+                replyTo (travelPortalListener, r);
+            }
+
+            @Methods "GET"
+            @Description "Return car rental info"
+            @Path "/rentals?from={dateFrom}&to={dateTo}&type={type}"
+            resource cars {
+                message m = receiveFrom(travelPortalListener);
+        message c = datamap("request.jschema","getRentalCars.jschema", "getRentalCarsMapping.js", m);
+                int sid = sendTo(carRentalEP, c);
+                message r = receiveFrom (carRentalEP, sid);
+                replyTo (travelPortalListener, r);
+            }
+
+            @Methods "POST"
+            @Description "Book holiday package; flight, hotel & rental car"
+            @Path "/book?from={dateFrom}&to={dateTo}"
+            resource bookPackage {
+                message m = receiveFrom(travelPortalListener);
+                string location = eval("$.request.holiday.location", m);
+                boolean booked, string flightBookingRef = bookAirline($location, $dateFrom, $dateTo, m);
+                if ($booked){
+                    parallel{
+                        worker hotelWorker{
+        message c = datamap("holiday-package.jschema", "get-hotels.jschema", "nearby-hotels.js", m);
+                            int sid = sendTo(hotelEP, c);
+                            message r = receiveFrom (hotelEP, sid);
+                            // Query each hotel for price and availability
+                            int lowestCost = 0
+                            JsonMessage hotel;
+                            foreach (message h : eval("$.hotels", r)){
+        message c1 = datamap("hotel.jschema","query-hotel.jschema", "hotel.js", h);
+                                int sid1 = sendTo(hotelEP, c1);
+                                message r1 = receiveFrom (hotelEP, sid1);
+                  if (lowestCost == 0){
+                     lowestCost = eval("$.hotel.cost", r1)
+                                   hotel = eval("$.hotel", r1)
+                               }
+                  if (eval("$.hotel.cost", r1) < lowestCost){
+                      lowestCost = eval("$.hotel.cost", r1)
+                      hotel = eval("$.hotel", r1)
+                  }
+               }
+               message c2 = datamap(new JsonSchema($hotel), "book-hotel.jschema", "book-hotel.js", m);
+               int sid2 = sendTo(hotelEP, c2);
+                             message r2 = receiveFrom (hotelEP, sid2);
+                             return r2;
+                         }
+                         worker carRentalWorker{
+        message c1 = datamap("holiday-package.jschema", "car-rental.jschema", "rental.js", m);
+                       parallel{
+                           worker getHertzCars{
+                               // retrieve rental cars available from Hertz rent-a-car
+        message c2 = datamap("car-rental.jschema", "hertz.jschema", "hertzMapping.js", c1);
+                                      int sid = sendTo(carRentalEP, c1);
+                                      message r = receiveFrom (carRentalEP, sid);
+        message c3 = datamap("hertz.jschema", "car-rental.jschema", "hertzMapping.js", r);
+                               return c3;
+                           }
+                           worker getEnterpriseCars{
+                               // retrieve rental cars available from Hertz rent-a-car
+        message c2 = datamap("car-rental.jschema", "enterprise.jschema", "enterpriseMapping.js", c1);
+                                     int sid = sendTo(carRentalEP, c1);
+                                      message r = receiveFrom (carRentalEP, sid);
+        message c3 = datamap("enterprise.jschema", "car-rental.jschema", "enterpriseMapping.js", r);
+                               return c3;
+                           }
+                   }
+
+
+                   log("Retrieving available vehicles from Partners");
+                   message c2 = receiveFrom(getHertzCars || getEnterpriseCars);
+        message c3 = datamap("car-rental.jschema", "book-car-rental.jschema", "rental.js", c2);
+                   int sid = sendTo(carRentalEP, c3);
+                          message r = receiveFrom (carRentalEP, sid);
+                          return r;
+             }
+                   message r1 = receiveFrom(carRentalWorker);
+                   JsonMessage carRentalResponse = eval("$", r1);
+
+                   message r2 = receiveFrom(hotelWorker);
+                   JsonMessage hotelResponse = eval("$", r2);
+
+        message c1 = datamap(new InputSchema($flightBookingRef, $hotelResponse, $carRentalResponse), "response.jschema", new MappingConfig("response.js"), r2);
+                   replyTo (travelPortalListener, c1);
+              }
+              else{
+        message c1 = map("holiday-package.jscema", "flight-unavailable.jschema", "unavailable.js", m);
+                   replyTo (travelPortalListener, c1);
+              }
+        }
+ }

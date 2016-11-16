@@ -1,0 +1,31 @@
+@startuml
+
+
+group connection_Y
+
+HTTP2_Client-> HTTP2_Server: GET "sport/tennis/"
+
+HTTP2_Server -> HTTP2_Client : Response(200 OK)
+HTTP2_Server -> HTTP2_Client : news_1:tennis (server-push)
+HTTP2_Server -> HTTP2_Client : news_2:tennis (server-push)
+HTTP2_Server -> HTTP2_Client : news_3:tennis (server-push)
+
+
+ end
+
+
+ group connection_Z
+
+ HTTP2_Client-> HTTP2_Server: GET "sport/tennis/"
+
+ HTTP2_Server -> HTTP2_Client : Response(200 OK)
+ HTTP2_Server -> HTTP2_Client : news_1:tennis (server-push)
+ HTTP2_Server -> HTTP2_Client : news_2:tennis (server-push)
+ HTTP2_Server -> HTTP2_Client : news_3:tennis (server-push)
+
+
+  end
+
+
+
+@endum

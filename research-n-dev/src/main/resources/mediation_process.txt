@@ -18,6 +18,7 @@ http_inbound_1 -> sequence_1 : request
 process_message(enrich, configs...)
 process_message(log, configs...)
 
+
 par
     process_message(trans, configs...)
     process_message(log, configs...)

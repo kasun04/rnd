@@ -1,0 +1,27 @@
+
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "kasun.mip.ecommerce";
+option java_outer_classname = "EcommerceProto";
+option objc_class_prefix = "HLW";
+
+package ecommerce;
+
+service ECommerceService {
+  rpc AddProduct (ProductRequest) returns (ProductResponse) {}
+}
+
+// The request message containing the user's name.
+message ProductRequest {
+  string productID = 1;
+  string name = 2;
+  string description = 3;
+}
+
+
+message ProductResponse {
+  string productID = 1;
+  string status = 2;
+}

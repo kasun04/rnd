@@ -1,7 +1,7 @@
 
 Creating Service Archive
 ========================
-/Users/kasun/development/deployment/ballerina/ballerina-tools-0.87/bin/ballerina build service Routing/cbr -o ServiceOrchestration/ATMLocatorUC.bsz
+/Users/kasun/development/deployment/ballerina/ballerina-tools-0.88/bin/ballerina build service ServiceOrchestration -o ServiceOrchestration/ATMLocatorUC.bsz
 
 
 Service
